@@ -1,11 +1,11 @@
 #!/bin/bash
 # list device status from csv
-## v0.0.3 By Jason Regula
+## v0.0.4 By Jason Regula
 
 clear
-VERSION="v0.0.3"
+VERSION="v0.0.4"
 SCRIPT_NAME=${SCRIPT_NAME:-"$(basename $0)"}
-FILEPATH="./resources/"
+FILEPATH="./resources"
 [[ -d $FILEPATH ]] || mkdir $FILEPATH
 
 echo "$SCRIPT_NAME Version: $VERSION by Jason Regula"
@@ -191,7 +191,7 @@ done
 #defualt run commands
 [[ -f $DEVICE_LIST_1_CSV ]] && readlist1
 [[ -f $DEVICE_LIST_2_CSV ]] && readlist2
-[[ -f $DEVICE_LIST_3_CSV ]] && readlist3
+[[ -f $DEVICE_LIST_3_CSV ]] && readlist3 || echo "$DEVICE_LIST_3_CSV not found"
 sortlist
 format
 cat $TEMPFINALFILE | column -xts","
