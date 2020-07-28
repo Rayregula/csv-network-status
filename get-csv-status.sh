@@ -1,13 +1,13 @@
 #!/bin/bash
 # list device status from csv
-## v0.0.4 By Jason Regula
+## v0.0.5 By Jason Regula
 
 clear
-VERSION="v0.0.4"
+VERSION="v0.0.5"
 SCRIPT_NAME=${SCRIPT_NAME:-"$(basename $0)"}
 FILEPATH="./resources"
 [[ -d $FILEPATH ]] || mkdir $FILEPATH
-
+echo ""
 echo "$SCRIPT_NAME Version: $VERSION by Jason Regula"
 echo ""
 
@@ -38,23 +38,22 @@ PING_TIMEOUT="2"
 # Help File:
 HELPFILE="\
 ""
-$SCRIPT_NAME Version: $VERSION by Jason Regula \n\
-Get status of network devices in a formatted hiracial list, reading from a .csv file. \n\
-File should be formatted by column as follows: A=Name,B=IP,C=Group,D=Layer \n\
+Get status of network devices in a formatted hierarchical list, reading from a .csv file. \n\
+File should be formatted by column as follows: A=Name,B=IP,C=Group,D=Layer (header ignored) \n\
 \n\
 Usage: ./$SCRIPT_NAME [-ctfh] \n\
   $SCRIPT_NAME -c <value> #set how many packets to ping with, (defualt = 1)\n\
   $SCRIPT_NAME -t <value> #set timeout for ping response, (defualt = 2)\n\
-  $SCRIPT_NAME -f <file_path> #read from specified csv file with ip's in column 'B' (ignores row 1) \n\
-  $SCRIPT_NAME -h  (this help file) \n\
+  $SCRIPT_NAME -f <file_path> #read from specified csv file with ip's in column 'B' (ignores first row) \n\
+  $SCRIPT_NAME -h #(this help file) \n\
 "
 
 
 #color Codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-NC='\033[0m' #No Color
+RED='\033[0;31m' #RED
+GREEN='\033[0;32m' #GREEN
+ORANGE='\033[0;33m' #ORANGE
+NC='\033[0m' #Clear Color
 
 
 #read csv 1
@@ -68,7 +67,15 @@ do
 	ping -c $PING_COUNT -t $PING_TIMEOUT $ip > /dev/null
 	[[ $? == "0" ]] && ping_status="Up" || ping_status="Down"
 	printf "$name,$ip,$ping_status\n" >> "$TEMPFILE1"
-  printf "$name,$ip,$ping_status,$group,$layer\n" >> "$TEMPSORTFILE1"
+  if [[ -z "$group" ]] && [[ -z "$layer" ]]; then
+      printf "$name,$ip,$ping_status,null,null\n" >> "$TEMPSORTFILE1"
+  elif [[ -z "$group" ]]; then
+      printf "$name,$ip,$ping_status,null,$layer\n" >> "$TEMPSORTFILE1"
+  elif [[ -z "$layer" ]]; then
+      printf "$name,$ip,$ping_status,$group,null\n" >> "$TEMPSORTFILE1"
+  else
+      printf "$name,$ip,$ping_status,$group,$layer\n" >> "$TEMPSORTFILE1"
+  fi
 done
 IFS=$OLDIFS
 #debug
@@ -99,18 +106,25 @@ echo "Name:,IP:,ping_status:" >> "$TEMPFILE3"
 OLDIFS=$IFS
 IFS=','
 [ ! -f $DEVICE_LIST_3_CSV ] && { echo "$DEVICE_LIST_3_CSV file not found"; exit 99; }
-sed '1d' $DEVICE_LIST_3_CSV | while read name ip group layer
+cat $DEVICE_LIST_3_CSV | tr -dc '[:alnum:]\n\r., _-:' | sed '1d' | while read name ip group layer
 do
 	ping -c $PING_COUNT -t $PING_TIMEOUT $ip > /dev/null
 	[[ $? == "0" ]] && ping_status="Up" || ping_status="Down"
 	printf "$name,$ip,$ping_status\n" >> "$TEMPFILE3"
-  printf "$name,$ip,$ping_status,$group,$layer\n" >> "$TEMPSORTFILE1"
+  if [[ -z "$group" ]] && [[ -z "$layer" ]]; then
+      echo ""$name","$ip","$ping_status","null","null"" >> "$TEMPSORTFILE1"
+  elif [[ -z "$group" ]] || [[ "$group" == 0 ]]; then
+      echo ""$name","$ip","$ping_status","null","null"" >> "$TEMPSORTFILE1"
+  elif [[ -z "$layer" ]] || [[ "$layer" == 0 ]]; then
+      echo ""$name","$ip","$ping_status","$group","null"" >> "$TEMPSORTFILE1"
+  else
+      echo ""$name","$ip","$ping_status","$group","$layer"" >> "$TEMPSORTFILE1"
+  fi
 done
 IFS=$OLDIFS
 #debug
 # cat $TEMPFILE3 | column -xts","
 }
-
 
 #sort file
 function sortlist() {
@@ -132,9 +146,12 @@ do
   elif [[ "$layer" = *"5"* ]]; then
       printf " ║║║║╠╦╦,$name,$ip,$ping_status\n" >> "$TEMPSORTFILE2"
   elif [[ "$layer" = *"?"* ]]; then
-      printf " ║║║║║║?,$name,$ip,$ping_status,Unknown Layer,\n" >> "$TEMPSORTFILE2"
+      printf " ║    ?,$name,$ip,$ping_status,Unknown Layer,\n" >> "$TEMPSORTFILE2"
+  elif [[ "$layer" = *"null"* ]]; then
+      printf " ║║║║║║?,$name,$ip,$ping_status\n" >> "$TEMPSORTFILE2"
   else
       printf " ║??????,$name,$ip,$ping_status,Other Error\n" >> "$TEMPSORTFILE2"
+      echo "Group $group, layer $layer"
   fi
 done
 IFS=$OLDIFS
@@ -167,19 +184,56 @@ IFS=$OLDIFS
 # cat $TEMPFINALFILE | column -xts","
 }
 
+#Run modes
+#///////////////////////////////////////////
+
+#defualt run commands
+function normalrun() {
+  [[ -f $DEVICE_LIST_1_CSV ]] && readlist1
+  [[ -f $DEVICE_LIST_2_CSV ]] && readlist2
+  [[ -f $DEVICE_LIST_3_CSV ]] && readlist3 || echo "$DEVICE_LIST_3_CSV not found"
+  sortlist
+  format
+  cat $TEMPFINALFILE | column -xts","
+}
+
+#-d run commands
+function debugmode() {
+  [[ -f $DEVICE_LIST_1_CSV ]] && readlist1
+  [[ -f $DEVICE_LIST_2_CSV ]] && readlist2
+  [[ -f $DEVICE_LIST_3_CSV ]] && readlist3 || echo "$DEVICE_LIST_3_CSV not found"
+  sortlist
+  format
+  cat $TEMPFINALFILE | column -xts","
+  open $WORKDIR
+  echo ""
+  echo "`tput setaf 3`Press any key to exit... `tput setaf 7`"
+  read -n 1
+  exit 0
+}
+
+#-f run commands
+function specifyfile() {
+  [[ -f $DEVICE_LIST_3_CSV ]] && readlist3 || echo "$DEVICE_LIST_3_CSV not found"
+  sortlist
+  format
+  cat $TEMPFINALFILE | column -xts","
+}
+#///////////////////////////////////////////
+
 #check for flags
-while getopts t:c:f:h OPT;
+while getopts t:c:f:dh OPT;
 do
   case $OPT in
     c ) PING_COUNT="$OPTARG";;
     t ) PING_TIMEOUT="$OPTARG" ;;
-    f ) DEVICE_LIST_1_CSV="$OPTARG"
-    readlist1
-    sortlist
-    format
-    cat $TEMPFINALFILE | column -xts","
+    f ) DEVICE_LIST_3_CSV="$OPTARG"
+    specifyfile
     exit 0;;
-    h ) clear; echo -e $HELPFILE
+    d ) debugmode
+    exit 0;;
+    h ) clear
+    echo -e $HELPFILE
     exit 0;;
     * ) echo ""
     echo -e $HELPFILE
@@ -187,14 +241,5 @@ do
    esac
 done
 
-
-#defualt run commands
-[[ -f $DEVICE_LIST_1_CSV ]] && readlist1
-[[ -f $DEVICE_LIST_2_CSV ]] && readlist2
-[[ -f $DEVICE_LIST_3_CSV ]] && readlist3 || echo "$DEVICE_LIST_3_CSV not found"
-sortlist
-format
-cat $TEMPFINALFILE | column -xts","
-#debug
-# open $WORKDIR
-# sleep 20
+#run normally if not in debug mode
+normalrun
