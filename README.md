@@ -4,7 +4,7 @@
 ![](https://s3-us-west-2.amazonaws.com/cdn.rayregula.com/CDN/csv-network-status.png)
 
 ## Description:
- Will read a CSV file, pinging all listed devices, outputs a formatted list showing network device hierarchy and ping status for each. <br/>
+ Will read a CSV file, pinging all listed devices, outputs a formatted list showing network device hierarchy and ping status for each. Helps detiertmain which upstream device issues start with <br/>
 ### 
 
 
